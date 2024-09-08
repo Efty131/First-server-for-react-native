@@ -55,27 +55,27 @@ app.get('/', (req, res) => {
         endpoints: {
             getAllUsers: "/users",
             createUser: "/users (POST method)",
+            updateUser: "/users/:id (PUT method)",
+            updatePartialUser: "/users/:id (PATCH method)",
+            deleteUser: "/users/:id (DELETE method)"
         },
     });
 });
 
 // POST route to save new User with custom ID to MongoDB
 app.post('/users', async (req, res) => {
-    const { name, email } = req.body; // Extract name and email from request body
+    const { name, email } = req.body;
 
-    // Validation
     if (!name || !email) {
         return res.status(400).json({ message: "Name and email are required" });
     }
 
     try {
-        // Get the highest id from the database and increment it
         const lastUser = await User.findOne().sort({ id: -1 });
-        const newId = lastUser ? lastUser.id + 1 : 1; // Increment or start from 1
+        const newId = lastUser ? lastUser.id + 1 : 1;
 
-        // Create a new user with the custom id
         const newUser = new User({ id: newId, name, email });
-        await newUser.save(); // Save user to database
+        await newUser.save();
         res.status(201).json({ message: "User saved successfully", user: newUser });
     } catch (error) {
         if (error.code === 11000) {
@@ -83,6 +83,62 @@ app.post('/users', async (req, res) => {
         } else {
             res.status(500).json({ message: "Error saving user", error });
         }
+    }
+});
+
+// PUT route to replace a user
+app.put('/users/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, email } = req.body;
+
+    if (!name || !email) {
+        return res.status(400).json({ message: "Name and email are required" });
+    }
+
+    try {
+        const updatedUser = await User.findOneAndReplace(
+            { id: id },
+            { id, name, email },
+            { new: true, upsert: true }
+        );
+        res.json({ message: "User replaced successfully", user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ message: "Error replacing user", error });
+    }
+});
+
+// PATCH route to update part of a user
+app.patch('/users/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, email } = req.body;
+
+    try {
+        const updatedUser = await User.findOneAndUpdate(
+            { id: id },
+            { $set: { name, email } },
+            { new: true }
+        );
+        if (!updatedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json({ message: "User updated successfully", user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ message: "Error updating user", error });
+    }
+});
+
+// DELETE route to delete a user
+app.delete('/users/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const deletedUser = await User.findOneAndDelete({ id: id });
+        if (!deletedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json({ message: "User deleted successfully", user: deletedUser });
+    } catch (error) {
+        res.status(500).json({ message: "Error deleting user", error });
     }
 });
 
